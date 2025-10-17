@@ -19,4 +19,3 @@ db.getConnection()
   });
 
 module.exports = { db };
-
