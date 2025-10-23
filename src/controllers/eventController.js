@@ -15,7 +15,7 @@ async function createEvent(req, res) {
         hora,
         descripcion,
         deporte,
-        JSON.stringify(ubicacion),
+        ubicacion,
       ]
     );
 
