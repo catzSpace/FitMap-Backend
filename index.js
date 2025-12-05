@@ -5,6 +5,7 @@ const cors = require("cors");
 
 const userRoutes = require("./src/routes/users");
 const eventRoutes = require("./src/routes/events");
+const uploadRoutes = require("./src/routes/upload");
 
 //Commit de dani
 
@@ -12,9 +13,11 @@ const app = express();
 
 app.use(express.json());
 app.use(cors());
+app.use("/upload", express.static("upload"));
 
 app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/upload", uploadRoutes);
 
 /*
 // read

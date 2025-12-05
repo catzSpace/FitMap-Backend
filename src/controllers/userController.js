@@ -16,9 +16,9 @@ async function registerUser(req, res) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await db.query(
-      `INSERT INTO usuarios (nombres, apellidos, cedula, email, password, fecha_nacimiento)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [nombres, apellidos, cedula, email, hashedPassword, fechaNacimiento]
+      `INSERT INTO usuarios (nombres, apellidos, id_rol, cedula, email, password, fecha_nacimiento)
+       VALUES (?, ?, ?, ?,?, ?, ?)`,
+      [nombres, apellidos, 2, cedula, email, hashedPassword, fechaNacimiento]
     );
 
     const token = jwt.sign({ id: result.insertId }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -46,13 +46,27 @@ async function loginUser(req, res) {
       return res.status(401).json({ error: "Credenciales incorrectas" });
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const rol = user.id_rol;
 
-    res.json({ userId: user.id, token });
+    res.json({ userId: user.id, token, rol});
   } catch (error) {
     console.error("Error en login:", error);
     res.status(500).json({ error: "Error en el servidor" });
   }
 }
 
+async function getUserProfile(req, res) {
+  try {
+    const userId = req.body.user;
+    const [rows] = await db.query("SELECT id, nombres, apellidos, cedula, email, fecha_nacimiento FROM usuarios WHERE id = ?", [userId]);
+    if (rows.length === 0)
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    res.json(rows[0]);
+  } catch (error) {
+    console.error("Error al obtener perfil de usuario:", error);
+    res.status(500).json({ error: "Error en el servidor" });
+  }
+}
 
-module.exports = { registerUser, loginUser};
+
+module.exports = { registerUser, loginUser, getUserProfile};

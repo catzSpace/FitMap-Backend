@@ -1,5 +1,16 @@
 const { db } = require("../dbConnection");
 
+
+async function getSport(req, res) {
+  try {
+    let deportes = await db.query("SELECT * FROM deportes");
+    console.log(deportes)
+    res.json(deportes);
+  } catch (error) {
+    console.log("Error al obtener deportes", error)
+  }
+}
+
 async function createEvent(req, res) {
   try {
     const { nombre, fecha, hora, descripcion, deporte, ubicacion } = req.body;
@@ -29,7 +40,14 @@ async function createEvent(req, res) {
 const getAllEvents = async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM eventos");
-    res.json(rows);
+    let usrs = await db.query("SELECT id, nombres FROM usuarios");
+    
+    const eventos = rows.map(evento => {
+      const organizador = usrs[0].find(user => user.id === evento.id_organizador);
+      return { ...evento, nombre_organizador: organizador ? organizador.nombres : 'Desconocido' };
+    });
+    
+    res.json(eventos);
   } catch (error) {
     console.error("Error al obtener eventos:", error);
     res.status(500).json({ error: "Error al obtener eventos" });
@@ -69,4 +87,4 @@ const joinEvent = async (req, res) => {
 };
 
 
-module.exports = { createEvent, getAllEvents, joinEvent };
+module.exports = { createEvent, getAllEvents, joinEvent, getSport };
