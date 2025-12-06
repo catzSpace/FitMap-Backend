@@ -23,7 +23,9 @@ async function registerUser(req, res) {
 
     const token = jwt.sign({ id: result.insertId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    res.status(201).json({ userId: result.insertId, token });
+    res.status(201).json({ userId: result.insertId, 
+                            rol: 2,
+                            token });
   } catch (error) {
     console.error("Error al crear usuario:", error);
     res.status(500).json({ error: "Error en el servidor" });
@@ -58,7 +60,7 @@ async function loginUser(req, res) {
 async function getUserProfile(req, res) {
   try {
     const userId = req.body.user;
-    const [rows] = await db.query("SELECT id, nombres, apellidos, cedula, email, fecha_nacimiento FROM usuarios WHERE id = ?", [userId]);
+    const [rows] = await db.query("SELECT id, nombres, apellidos, id_rol, cedula, email, fecha_nacimiento FROM usuarios WHERE id = ?", [userId]);
     if (rows.length === 0)
       return res.status(404).json({ error: "Usuario no encontrado" });
     res.json(rows[0]);
