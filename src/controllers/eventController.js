@@ -55,6 +55,15 @@ const getAllEvents = async (req, res) => {
 };
 
 
+const postNotificacion = async (req, res) => {
+  
+}
+
+const getNotificacion = async (req, res) => {
+
+}
+
+
 const joinEvent = async (req, res) => {
   try {
     const { id_evento } = req.body;
