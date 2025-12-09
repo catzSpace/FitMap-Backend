@@ -1,6 +1,7 @@
 const { db } = require("../dbConnection");
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
+const bcrypt = require('bcrypt');
+const path = require("path");
 
 async function registerUser(req, res) {
   try {
@@ -71,4 +72,138 @@ async function getUserProfile(req, res) {
 }
 
 
-module.exports = { registerUser, loginUser, getUserProfile};
+
+
+async function getNotifications(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const [notifications] = await db.query(
+      "SELECT * FROM notificaciones WHERE id_user = ?",
+      [userId]
+    );
+
+    res.json(notifications);
+  } catch (error) {
+    console.error("Error al obtener las notificaciones:", error);
+    res.status(500).json({ error: "Error en el servidor" });
+  }
+};
+
+async function getNotiUnread(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const [result] = await db.query(
+      "SELECT COUNT(*) AS count FROM notificaciones WHERE id_user = ? AND isread = 1",
+      [userId]
+    );
+
+    res.json({ count: result[0].count });
+  } catch (error) {
+    console.error("Error al obtener notificaciones no leídas:", error);
+    res.status(500).json({ error: "Error en el servidor" });
+  }
+};
+
+
+async function verifyUser(req, res) {
+  try {
+    const { user } = req.body;
+    const userId = user.id;
+    const solicitudId = req.body.solicitudId;
+
+    const updateResult = await db.query(
+      "UPDATE usuarios SET id_rol = ? WHERE id = ?", 
+      [3, userId]
+    );
+
+    if (updateResult.affectedRows === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+
+    const deleteResult = await db.query(
+      "DELETE FROM solicitudes_verificacion WHERE id = ?", 
+      [solicitudId]
+    );
+
+    if (deleteResult.affectedRows === 0) {
+      return res.status(404).json({ error: "Solicitud no encontrada o ya eliminada" });
+    }
+
+
+    const message = "¡Tu solicitud de verificación ha sido aceptada!";
+
+    const notificationResult = await db.query(
+      "INSERT INTO notificaciones (id_user, mensaje, isread) VALUES (?, ?, ?)",
+      [userId, message, 1]
+    );
+
+    res.json({ message: "Rol del usuario actualizado" });
+  } catch (error) {
+    console.error("Error al verificar al usuario:", error);
+    res.status(500).json({ error: "Error en el servidor" });
+  }
+}
+
+async function rejectVerifyUser(req, res) {
+  try {
+    const { user } = req.body;
+    const userId = user.id;
+    const solicitudId = req.body.solicitudId;
+    
+    const deleteResult = await db.query(
+      "DELETE FROM solicitudes_verificacion WHERE id = ?", 
+      [solicitudId]
+    );
+
+    if (deleteResult.affectedRows === 0) {
+      return res.status(404).json({ error: "Solicitud no encontrada o ya eliminada" });
+    }
+
+
+    const message = "Tu solicitud de verificación ha sido rechazada";
+
+    const notificationResult = await db.query(
+      "INSERT INTO notificaciones (id_user, mensaje, isread) VALUES (?, ?, ?)",
+      [userId, message, 1]
+    );
+
+    res.json({ message: "Rol del usuario no actuazlizado" });
+  } catch (error) {
+    console.error("Error al verificar al usuario:", error);
+    res.status(500).json({ error: "Error en el servidor" });
+  }
+}
+
+
+async function getUserVerification(req, res) {
+  try {
+    const [solicitudes] = await db.query("SELECT * FROM solicitudes_verificacion");
+    res.json(solicitudes);
+  } catch (error) {
+    console.error("Error al obtener las solicitudes:", error);
+    res.status(500).json({ error: "Error al obtener las solicitudes" });
+  }
+}
+
+async function getPdf(req, res) {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, "../../uploads", filename);
+
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      console.error("Error al enviar el archivo:", err);
+      res.status(404).send({ message: "Archivo no encontrado" });
+    }
+  });
+}
+
+
+module.exports = { registerUser, 
+                    loginUser, 
+                    getUserProfile, 
+                    getUserVerification, 
+                    verifyUser, rejectVerifyUser, getPdf,
+                    getNotiUnread, getNotifications};

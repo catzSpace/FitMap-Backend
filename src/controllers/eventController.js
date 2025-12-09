@@ -54,6 +54,25 @@ const getAllEvents = async (req, res) => {
   }
 };
 
+const getUserEvents = async (req, res) => {
+  try {
+    const { userId } = req.params;  
+    const [rows] = await db.query("SELECT * FROM eventos WHERE id_organizador = ?", [userId]);
+  
+    let usrs = await db.query("SELECT id, nombres FROM usuarios");
+    const eventos = rows.map(evento => {
+      const organizador = usrs.find(user => user.id === evento.id_organizador);
+      return { 
+        ...evento, 
+        nombre_organizador: organizador ? organizador.nombres : 'Desconocido' 
+      };
+    });
+    res.json(eventos);
+  } catch (error) {
+    console.error("Error al obtener eventos:", error);
+    res.status(500).json({ error: "Error al obtener eventos" });
+  }
+};
 
 const postNotificacion = async (req, res) => {
   
@@ -96,4 +115,4 @@ const joinEvent = async (req, res) => {
 };
 
 
-module.exports = { createEvent, getAllEvents, joinEvent, getSport };
+module.exports = { createEvent, getAllEvents, joinEvent, getSport, getUserEvents };

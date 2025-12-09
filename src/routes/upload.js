@@ -1,9 +1,8 @@
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
-const { db } = require("../dbConnection"); // Importa conexión MySQL
-const { verifyToken } = require("../middleware/authMiddleware"); // para saber qué usuario sube el archivo
-
+const { db } = require("../dbConnection");
+const { verifyToken } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 // configuración de multer
@@ -23,14 +22,15 @@ router.post("/", verifyToken, upload.single("document"), async (req, res) => {
   }
 
   try {
-    const user_id = req.user.id; // viene del token JWT
+    const user_id = req.user.id;
     const nombre_archivo = req.file.originalname;
     const ruta_archivo = req.file.path;
+    const nombre_usuario = req.body.user;
 
     // Guardar en MySQL
     await db.query(
-      "INSERT INTO solicitudes_verificacion (id_user, ruta_pdf) VALUES (?, ?)",
-      [user_id, ruta_archivo]
+      "INSERT INTO solicitudes_verificacion (id_user, user_name, ruta_pdf) VALUES (?, ?, ?)",
+      [user_id, nombre_usuario, ruta_archivo]
     );
 
     res.json({

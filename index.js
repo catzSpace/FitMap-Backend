@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const { db } = require("./src/dbConnection");
 const cors = require("cors");
+const path = require("path");
 
 const userRoutes = require("./src/routes/users");
 const eventRoutes = require("./src/routes/events");
@@ -13,11 +14,15 @@ const app = express();
 
 app.use(express.json());
 app.use(cors());
+
 app.use("/upload", express.static("upload"));
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/upload", uploadRoutes);
+
 
 /*
 // read
