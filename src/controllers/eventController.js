@@ -160,9 +160,9 @@ const joinEvent = async (req, res) => {
       return res.status(400).json({ message: "Ya estás inscrito en este evento" });
     }
 
-    // 2. Revisar cupos del evento (la columna correcta es id)
+    // 2. Revisar cupos e info del evento
     const [cuposRows] = await db.query(
-      "SELECT cupos FROM eventos WHERE id = ?",
+      "SELECT cupos, id_organizador, nombre FROM eventos WHERE id = ?",
       [id_evento]
     );
 
@@ -170,41 +170,73 @@ const joinEvent = async (req, res) => {
       return res.status(404).json({ message: "El evento no existe" });
     }
 
-    const cupos = cuposRows[0].cupos;
+    const { cupos, id_organizador, nombre: evento_nombre } = cuposRows[0];
 
-    // Cupos ilimitados
-    if (cupos === -1) {
-      // simplemente inserta la inscripción
-      await db.query(
-        "INSERT INTO inscripcion_evento (id_participante, id_evento) VALUES (?, ?)",
-        [id_participante, id_evento]
-      );
-
-      return res.status(201).json({ message: "Inscripción exitosa" });
-    }
-
-    // Cupos limitados
-    if (cupos === 0) {
+    // 3. Validar cupos limitados
+    if (cupos !== -1 && cupos === 0) {
       return res.status(400).json({ message: "No quedan cupos disponibles" });
     }
 
-    // 3. Insertar inscripción
+    // 4. Insertar inscripción
     await db.query(
       "INSERT INTO inscripcion_evento (id_participante, id_evento) VALUES (?, ?)",
       [id_participante, id_evento]
     );
 
-    // 4. Restar cupo (CORREGIDO)
-    await db.query(
-      "UPDATE eventos SET cupos = cupos - 1 WHERE id = ?",
-      [id_evento]
+    // 5. Restar cupo solo si no es ilimitado
+    if (cupos !== -1) {
+      await db.query(
+        "UPDATE eventos SET cupos = cupos - 1 WHERE id = ?",
+        [id_evento]
+      );
+    }
+
+    // 6. Info del usuario
+    const [[usuario]] = await db.query(
+      "SELECT email FROM usuarios WHERE id = ?",
+      [id_participante]
     );
 
-    res.status(201).json({ message: "Inscripción exitosa" });
+    const nombre_usuario = usuario ? usuario.email : "Un usuario";
+
+    // ---------- NUEVO: GENERAR CÓDIGO 6 dígitos ----------
+    const generarCodigo = () => {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let code = "";
+      for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return code;
+    };
+
+    const codigo = generarCodigo();
+
+    // ---------- NOTIFICACIÓN PARA EL ORGANIZADOR ----------
+    const mensajeOrganizador = `El usuario ${nombre_usuario} se ha inscrito a tu evento "${evento_nombre}". su codigo de confirmacion es ${codigo}`;
+
+    await db.query(
+      `INSERT INTO notificaciones_eventos (id_user, id_user_register, id_evento, mensaje)
+       VALUES (?, ?, ?, ?)`,
+      [id_organizador, id_participante, id_evento, mensajeOrganizador]
+    );
+
+    // ---------- NOTIFICACIÓN PARA EL PARTICIPANTE ----------
+    const mensajeParticipante = `Te has inscrito exitosamente al evento "${evento_nombre}". Tu código de verificación es: ${codigo}. Preséntalo el día del evento para confirmar tu participación.`;
+
+    await db.query(
+      `INSERT INTO notificaciones_eventos (id_user, id_user_register, id_evento, mensaje)
+       VALUES (?, ?, ?, ?)`,
+      [id_participante, id_organizador, id_evento, mensajeParticipante]
+    );
+
+    return res.status(201).json({ 
+      message: "Inscripción exitosa",
+      codigo_verificacion: codigo // opcional si lo quieres en el front
+    });
 
   } catch (error) {
     console.error("Error al inscribirse en el evento:", error);
-    res.status(500).json({ message: "Error interno del servidor", error: error.message });
+    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
   }
 };
 
@@ -228,34 +260,61 @@ const cancelJoinEvent = async (req, res) => {
       return res.status(400).json({ message: "No estabas inscrito en este evento" });
     }
 
-    // 2. Eliminar inscripción
+    // 2. Obtener organizador + nombre del usuario que cancela
+    const [[evento]] = await db.query(
+      "SELECT * FROM eventos WHERE id = ?",
+      [id_evento]
+    );
+
+    if (!evento) {
+      return res.status(404).json({ message: "Evento no encontrado" });
+    }
+
+    const id_organizador = evento.id_organizador;
+    const evento_nombre = evento.nombre;
+
+    // Obtener nombre del usuario que cancela
+    const [[usuario]] = await db.query(
+      "SELECT email FROM usuarios WHERE id = ?",
+      [id_participante]
+    );
+
+    const nombre_usuario = usuario ? usuario.email : "Un usuario";
+
+    // 3. Eliminar inscripción
     await db.query(
       "DELETE FROM inscripcion_evento WHERE id_participante = ? AND id_evento = ?",
       [id_participante, id_evento]
     );
 
-    // 3. Devolver cupo si no es ilimitado
-    const [cuposRows] = await db.query(
+    // 4. Devolver cupo si no es ilimitado
+    const [[cuposRow]] = await db.query(
       "SELECT cupos FROM eventos WHERE id = ?",
       [id_evento]
     );
 
-    if (cuposRows.length > 0) {
-      const cupos = cuposRows[0].cupos;
-
-      if (cupos !== -1) {
-        await db.query(
-          "UPDATE eventos SET cupos = cupos + 1 WHERE id = ?",
-          [id_evento]
-        );
-      }
+    if (cuposRow && cuposRow.cupos !== -1) {
+      await db.query(
+        "UPDATE eventos SET cupos = cupos + 1 WHERE id = ?",
+        [id_evento]
+      );
     }
+
+    // 5. Crear notificación SIEMPRE
+    const mensaje = `${nombre_usuario} canceló su inscripción del evento "${evento_nombre}".`;
+
+    await db.query(
+      `INSERT INTO notificaciones_eventos 
+        (id_user, id_user_register, id_evento, mensaje)
+       VALUES (?, ?, ?, ?)`,
+      [id_organizador, id_participante, id_evento, mensaje]
+    );
 
     return res.json({ message: "Inscripción cancelada correctamente" });
 
   } catch (error) {
     console.error("Error al cancelar inscripción:", error);
-    res.status(500).json({ message: "Error interno del servidor", error: error.message });
+    return res.status(500).json({ message: "Error interno del servidor", error: error.message });
   }
 };
 

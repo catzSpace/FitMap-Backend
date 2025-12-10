@@ -83,7 +83,15 @@ async function getNotifications(req, res) {
       [userId]
     );
 
-    res.json(notifications);
+    const [notifications_events] = await db.query(
+      "SELECT * FROM notificaciones_eventos WHERE id_user = ?",
+      [userId]
+    );
+
+    const allNotifications = [...notifications, ...notifications_events];
+
+
+    res.json(allNotifications);
   } catch (error) {
     console.error("Error al obtener las notificaciones:", error);
     res.status(500).json({ error: "Error en el servidor" });
