@@ -29,7 +29,7 @@ async function createEvent(req, res) {
 
     // Valores por defecto si no se envían desde el formulario
     const costosFinal = costos ?? 0;
-    const cuposFinal = (cupos == '' || cupos == null) ? -1 : cupos;
+    const cuposFinal = (cupos == '' || cupos == null || cupos <= 0) ? -1 : cupos;
     const requisitosFinal = requisitos ?? "no hay requisitos";
 
     const [result] = await db.query(
@@ -58,6 +58,64 @@ async function createEvent(req, res) {
   }
 }
 
+
+
+async function deleteEvent(req, res) {
+  try {
+    const eventId = req.params.id;
+    const userId = req.user.id;
+
+    // 1. Verificar que el evento existe
+    const [rows] = await db.query(
+      "SELECT id, id_organizador, nombre FROM eventos WHERE id = ?",
+      [eventId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Evento no encontrado" });
+    }
+
+    const evento = rows[0];
+
+    // 2. Verificar que el usuario es el dueño
+    if (evento.id_organizador !== userId) {
+      return res.status(403).json({ error: "No tienes permiso para eliminar este evento" });
+    }
+
+    const nombreEvento = evento.nombre;
+
+    // 3. Obtener participantes
+    const [participantes] = await db.query(
+      "SELECT id_participante FROM inscripcion_evento WHERE id_evento = ?",
+      [eventId]
+    );
+
+    // 4. Notificar a cada participante
+    if (participantes.length > 0) {
+      for (const p of participantes) {
+        const mensaje = `El evento "${nombreEvento}" ha sido cancelado por el organizador.`;
+
+        await db.query(
+          `INSERT INTO notificaciones_eventos (id_user, id_user_register, id_evento, mensaje)
+           VALUES (?, ?, NULL, ?)`,
+          [p.id_participante, userId, mensaje]
+        );
+      }
+    }
+
+    // 5. Eliminar participantes del evento
+    await db.query("DELETE FROM inscripcion_evento WHERE id_evento = ?", [eventId]);
+
+    // 6. Eliminar el evento
+    await db.query("DELETE FROM eventos WHERE id = ?", [eventId]);
+
+    return res.json({ message: "Evento eliminado y notificaciones enviadas" });
+
+  } catch (error) {
+    console.error("Error eliminando evento:", error);
+    return res.status(500).json({ error: "Error en el servidor" });
+  }
+}
 
 const getEventParticipants = async (req, res) => {
   try {
@@ -318,4 +376,4 @@ const cancelJoinEvent = async (req, res) => {
   }
 };
 
-module.exports = { createEvent, getAllEvents, joinEvent, getSport, getUserEvents, getEventParticipants, cancelJoinEvent};
+module.exports = { createEvent, getAllEvents, joinEvent, getSport, getUserEvents, getEventParticipants, cancelJoinEvent, deleteEvent};
