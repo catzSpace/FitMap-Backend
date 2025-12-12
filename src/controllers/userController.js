@@ -10,9 +10,13 @@ async function registerUser(req, res) {
     if (!nombres || !email || !password)
       return res.status(400).json({ error: "Campos obligatorios faltantes" });
 
-    const [exist] = await db.query("SELECT id FROM usuarios WHERE email = ?", [email]);
-    if (exist.length > 0)
+    const [existEmail] = await db.query("SELECT id FROM usuarios WHERE email = ?", [email]);
+    if (existEmail.length > 0)
       return res.status(409).json({ error: "Correo ya registrado" });
+
+    const [existCedula] = await db.query("SELECT id FROM usuarios WHERE cedula = ?", [cedula]);
+    if (existCedula.length > 0)
+      return res.status(409).json({ error: "cedula ya registrada" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
